@@ -44,6 +44,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "OverTheAirConfigDataRecord.h"
 #include "GpsFixLiFoRingBuffer.h"
 #include "LSM303.h"
+#include "CayenneLPP.h"
 
 //#define DEBUG
 
@@ -130,6 +131,7 @@ static uint8_t sendBufferSize;
 static uint8_t loraHWEui[8];
 static bool isLoraHWEuiInitialized;
 
+CayenneLPP CayenneRecord(51); // buffer is set to the same size as the sendBuffer[]
 
 void setup();
 void loop();
@@ -304,6 +306,29 @@ int8_t getBoardTemperature()
  */
 void updateSendBuffer()
 {
+    // Reset the record
+    CayenneRecord.reset();
+
+    // Add GPS record on data channel 1
+    float latitude = (float)pendingReportDataRecord.getLat() / 10000000.0f;
+    float longitude = (float)pendingReportDataRecord.getLong() / 10000000.0f;
+    float altitude = (float)pendingReportDataRecord.getAltitude();
+    CayenneRecord.addGPS(1, latitude, longitude, altitude);
+
+    // Add battery voltage on data channel 2
+    float voltage = (float)pendingReportDataRecord.getBatteryVoltage() * 10 + 3000;
+    CayenneRecord.addAnalogInput(2, voltage);
+    
+    // Add temperature on data channel 3
+    float temp = (float)pendingReportDataRecord.getBoardTemperature() * 10;
+    CayenneRecord.addTemperature(3, temp);
+
+    // Copy out the formatted record
+    sendBufferSize = CayenneRecord.copy(sendBuffer);
+
+    // Multiple GPS coordinates is not supported
+    
+    /*
     // copy the pendingReportDataRecord into the sendBuffer
     memcpy(sendBuffer, pendingReportDataRecord.getBuffer(), pendingReportDataRecord.getSize());
     sendBufferSize = pendingReportDataRecord.getSize();
@@ -326,6 +351,7 @@ void updateSendBuffer()
         memcpy(&sendBuffer[sendBufferSize - 1], record.getBuffer(), record.getSize());
         sendBufferSize += record.getSize();
     }
+    */
 }
 
 /**
